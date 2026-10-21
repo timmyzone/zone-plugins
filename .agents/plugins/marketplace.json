@@ -1,0 +1,12 @@
+{
+  "name": "zone-plugins",
+  "interface": { "displayName": "Zone Plugins" },
+  "plugins": [
+    {
+      "name": "zone-workflow",
+      "source": { "source": "local", "path": "./plugins/zone-workflow" },
+      "policy": { "installation": "AVAILABLE", "authentication": "ON_INSTALL" },
+      "category": "Productivity"
+    }
+  ]
+}

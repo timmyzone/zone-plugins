@@ -1,0 +1,7 @@
+{
+  "name": "zone-workflow",
+  "version": "0.1.0",
+  "description": "Zone 共用 PR 與需求導向審查",
+  "author": { "name": "Zone" },
+  "repository": "https://github.com/timmyzone/zone-plugins"
+}

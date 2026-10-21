@@ -1,0 +1,8 @@
+{
+  "name": "zone-plugins",
+  "metadata": { "description": "Zone 共用 PR 與需求導向審查流程" },
+  "owner": { "name": "Zone" },
+  "plugins": [
+    { "name": "zone-workflow", "source": "./plugins/zone-workflow" }
+  ]
+}
