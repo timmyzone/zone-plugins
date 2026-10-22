@@ -4,6 +4,8 @@
 內容以 committed diff 為準，不把生成檔或 commit 清單當作功能描述
 下列欄位替換為真實資料，API／DB／Notes 無內容時移除
 符合無票 chore／refactor 例外時移除 Related Tickets，將 AC 對照改為「驗證」列出實際檢查與結果，Notes 註明來源分支及免票原因
+版本同步 PR 將 Related Tickets 改為「同步來源」，列原始 release／來源 SHA、已合併來源 PR 與原票連結；AC 對照改為「同步驗證」，列逐級路徑、來源驗收與本次 CI
+使用暫時分支解衝突時，在同步驗證另列原目標 SHA、衝突解法及相關驗證；不把沿用來源驗收寫成本次重新完成 AC
 
 ```markdown
 ## Related Tickets

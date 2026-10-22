@@ -1,6 +1,7 @@
 import importlib.util
 import json
 import re
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -9,7 +10,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 PLUGIN = ROOT / "plugins/zone-workflow"
-SCRIPT = PLUGIN / "scripts/check_versions.py"
+SCRIPT = PLUGIN / "skills/zone-pr/scripts/check_versions.py"
 spec = importlib.util.spec_from_file_location("versions", SCRIPT)
 versions = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(versions)
@@ -20,6 +21,55 @@ def data(version="6.2.0", base="release/v6.2.0"):
 
 
 class VersionTests(unittest.TestCase):
+    def test_promotion_route_numeric_order_and_hotfix(self):
+        branches = {"main", "release/v6.9.0", "release/v6.9.1", "release/6.10.0", "feature/x"}
+        for source, base in [("release/v6.9.0", "release/v6.9.1"),
+                             ("release/v6.9.1", "release/6.10.0"),
+                             ("release/6.10.0", "main")]:
+            with self.subTest(source=source, base=base):
+                self.assertEqual(versions.check_promotion_route(source, base, branches),
+                                 {"source": source, "base": base, "merge_method": "merge"})
+        for source, base in [("release/v6.9.0", "release/6.10.0"),
+                             ("release/v6.9.1", "main"),
+                             ("release/6.10.0", "release/v6.9.1"),
+                             ("release/v6.9.1", "release/v6.9.1")]:
+            with self.subTest(source=source, base=base), self.assertRaises(ValueError):
+                versions.check_promotion_route(source, base, branches)
+
+    def test_promotion_route_requires_unambiguous_remote_branches(self):
+        branches = {"main", "release/v6.9.1"}
+        for source, base in [("release/v6.9.0", "main"), (None, "main"),
+                             ("main", "main"), ("release/v6.9.1", None),
+                             ("release/v6.9.1", "release/v6.10.0")]:
+            with self.subTest(source=source, base=base), self.assertRaises(ValueError):
+                versions.check_promotion_route(source, base, branches)
+        for extra in ["release/6.9.1", "release/v06.9.1", "release/v6.10", "release/latest"]:
+            with self.subTest(extra=extra), self.assertRaises(ValueError):
+                versions.check_promotion_route("release/v6.9.1", "main", branches | {extra})
+        with self.assertRaises(ValueError):
+            versions.check_promotion_route("release/v6.9.1", "main", {"release/v6.9.1"})
+
+    def test_promotion_does_not_recheck_ticket_versions(self):
+        branches = {"main", "release/v6.9.1", "release/v6.10.0"}
+        payload = {**data("6.9.1", "release/v6.10.0"), "kind": "promotion",
+                   "source": "release/v6.9.1", "head": "merge/6.9.1-to-6.10.0"}
+        self.assertEqual(versions.check_versions(payload, branches),
+                         {"kind": "promotion", "source": "release/v6.9.1",
+                          "base": "release/v6.10.0", "merge_method": "merge",
+                          "ticket_check": "not_checked"})
+        payload["kind"] = "change"
+        with self.assertRaises(ValueError):
+            versions.check_versions(payload, branches)
+
+    def test_pr_kind_and_promotion_source_required(self):
+        branches = {"main", "release/v6.2.0"}
+        for payload in [{"base": "main", "kind": "promotion"},
+                        *[{**data(), "kind": kind} for kind in [None, "", "Promotion", [], {}]]]:
+            with self.subTest(payload=payload), self.assertRaises(ValueError):
+                versions.check_versions(payload, branches)
+        self.assertEqual(versions.check_versions({**data(), "kind": "change"}, branches),
+                         versions.check_versions(data(), branches))
+
     def test_ticket_optional_branches(self):
         for head in ["chore", "refactor", "chore/deps", "refactor/service"]:
             with self.subTest(head=head):
@@ -84,7 +134,10 @@ class VersionTests(unittest.TestCase):
 
     def test_cli_local_remote_and_failure(self):
         with tempfile.TemporaryDirectory() as directory:
-            repo = Path(directory)
+            installed = Path(directory) / "installed plugin"
+            shutil.copytree(PLUGIN, installed, ignore=shutil.ignore_patterns("__pycache__"))
+            repo = Path(directory) / "target repo"
+            repo.mkdir()
             def git(*args):
                 return subprocess.run(["git", *args], cwd=repo, check=True,
                                       capture_output=True, text=True)
@@ -92,12 +145,27 @@ class VersionTests(unittest.TestCase):
             git("-c", "user.name=Test", "-c", "user.email=test@example.invalid",
                 "commit", "--allow-empty", "-m", "fixture")
             git("branch", "release/v6.3.0")
+            git("branch", "release/v6.2.0")
             input_file = repo / "input.json"
             input_file.write_text(json.dumps(data("6.4.0", "main")))
-            command = [sys.executable, str(SCRIPT), str(input_file), "--remote", str(repo)]
+            command = [sys.executable, str(installed / SCRIPT.relative_to(PLUGIN)),
+                       str(input_file), "--remote", str(repo)]
             result = subprocess.run(command, cwd=repo, capture_output=True, text=True)
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertEqual(json.loads(result.stdout)["expected"], "6.4.0")
+            promotion = {**data("6.2.0", "release/v6.3.0"), "kind": "promotion",
+                         "source": "release/v6.2.0"}
+            input_file.write_text(json.dumps(promotion))
+            result = subprocess.run(command, cwd=repo, capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(json.loads(result.stdout),
+                             {"kind": "promotion", "source": "release/v6.2.0",
+                              "base": "release/v6.3.0", "merge_method": "merge",
+                              "ticket_check": "not_checked"})
+            input_file.write_text(json.dumps({**promotion, "base": "main"}))
+            result = subprocess.run(command, cwd=repo, capture_output=True, text=True)
+            self.assertEqual(result.returncode, 1)
+            self.assertIn("BLOCKED", result.stderr)
             result = subprocess.run(command[:-1] + [str(repo / "missing")],
                                     cwd=repo, capture_output=True, text=True)
             self.assertEqual(result.returncode, 1)
@@ -113,6 +181,11 @@ class PackageTests(unittest.TestCase):
                      for path in [".claude-plugin", ".codex-plugin"]]
         self.assertEqual(manifests[0]["name"], manifests[1]["name"])
         self.assertEqual(manifests[0]["version"], manifests[1]["version"])
+        self.assertRegex(manifests[0]["version"], r"^[0-9]+\.[0-9]+\.[0-9]+$")
+        for manifest in manifests:
+            self.assertTrue(manifest["description"])
+            self.assertTrue(manifest["author"]["name"])
+        self.assertEqual((PLUGIN / manifests[1]["skills"]).resolve(), PLUGIN / "skills")
         for relative in [".claude-plugin/marketplace.json", ".agents/plugins/marketplace.json"]:
             catalog = json.loads((ROOT / relative).read_text())
             entry = catalog["plugins"][0]

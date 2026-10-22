@@ -1,4 +1,4 @@
-"""Check the supplied PR ticket versions against live remote branch names."""
+"""Check PR ticket versions or promotion routes against live remote branch names."""
 
 import argparse
 import json
@@ -11,12 +11,42 @@ from pathlib import Path
 RELEASE = re.compile(r"release/v?([0-9]+)\.([0-9]+)\.([0-9]+)")
 
 
+def check_promotion_route(source, base, branches):
+    if not isinstance(source, str) or source not in branches or not RELEASE.fullmatch(source):
+        raise ValueError("source 必須是存在遠端的完整 release/[v]X.Y.Z 分支")
+    if not isinstance(base, str) or base not in branches:
+        raise ValueError("base 必須是存在遠端的完整分支")
+    releases = {}
+    for branch in sorted(branches):
+        if not branch.startswith("release/"):
+            continue
+        match = RELEASE.fullmatch(branch)
+        if not match:
+            raise ValueError(f"無法判定 release 分支版本：{branch}")
+        version = tuple(map(int, match.groups()))
+        if version in releases:
+            raise ValueError(f"同版本存在多個 release 分支：{releases[version]}、{branch}")
+        releases[version] = branch
+    ordered = [releases[version] for version in sorted(releases)]
+    position = ordered.index(source)
+    expected = ordered[position + 1] if position + 1 < len(ordered) else "main"
+    if base != expected:
+        raise ValueError(f"{source} 必須逐級合併至 {expected}，不可合併至 {base}")
+    return {"source": source, "base": base, "merge_method": "merge"}
+
+
 def check_versions(data, branches):
     if not isinstance(data, dict):
         raise ValueError("輸入必須是 JSON object")
     base = data.get("base")
     if not isinstance(base, str) or base not in branches:
         raise ValueError("base 必須是存在遠端的完整分支")
+    kind = data.get("kind", "change")
+    if kind not in ("change", "promotion"):
+        raise ValueError("kind 只允許 change 或 promotion")
+    if kind == "promotion":
+        return {"kind": kind, **check_promotion_route(data.get("source"), base, branches),
+                "ticket_check": "not_checked"}
     match = RELEASE.fullmatch(base)
     if base == "main":
         versions = [
