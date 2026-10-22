@@ -63,19 +63,57 @@ Codex 從技能選單選取對應 skill，或在請求中指名
 建立／更新 PR 會在門檻通過後啟用 auto-merge；無必要檢查的 repo 可能立即合併
 skill 是代理工作流程，不是強制 CI；需要強制執行的規則仍由 branch protection／CI 落實
 
-## 更新與回退
+## 更新
 
 維護者同步遞增兩個 plugin manifest 的版本，驗證後將 Git commit／tag push 到此 repo
-使用者更新：
+Codex：
+
+```sh
+codex plugin marketplace upgrade zone-plugins
+```
+
+刷新來源後，於 Plugins 介面確認安裝版本並更新；若仍保留舊版，可重新安裝：
+
+```sh
+codex plugin remove zone-workflow@zone-plugins
+codex plugin add zone-workflow@zone-plugins
+```
+
+Claude Code：
 
 ```sh
 claude plugin marketplace update zone-plugins
 claude plugin update zone-workflow@zone-plugins
-codex plugin marketplace upgrade zone-plugins
 ```
 
-Codex 刷新 catalog 後，於 Plugins 介面確認安裝版本並更新；若仍保留舊版，移除後重新安裝
 兩平台更新後重啟 App、開新對話確認版本與 skills；每人自行更新，沒有管理員每日同步
+
+## 解除安裝與刪除
+
+Codex：
+
+```sh
+# 解除安裝 plugin，並刪除其本機快取
+codex plugin remove zone-workflow@zone-plugins
+
+# 不再使用此 marketplace 時，再移除安裝來源
+codex plugin marketplace remove zone-plugins
+```
+
+Claude Code：
+
+```sh
+claude plugin uninstall zone-workflow@zone-plugins
+
+# 不再使用此 marketplace 時，再移除安裝來源
+claude plugin marketplace remove zone-plugins
+```
+
+Claude Code 上述 uninstall 使用預設 user scope；若曾以 project／local scope 安裝，須在對應專案加上 `--scope project`／`--scope local` 解除安裝
+只想移除 plugin 時執行第一行即可；來源還有其他 plugin 在使用時，保留 marketplace
+完成後重啟 App、開新對話。這些指令不會刪除 GitHub repo 或自行 clone 的專案目錄；若也不要本機 clone，確認沒有未提交工作後另行刪除該目錄
+
+## 回退
 
 回退時將此 repo 的**獨立 checkout** 切到已驗證 tag／commit，以本機 marketplace 來源重新安裝
 先移除原 plugin／marketplace，再將該 checkout 路徑加入；不要對有未提交修改的工作目錄執行 reset

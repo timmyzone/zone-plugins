@@ -33,6 +33,9 @@ def check_versions(data, branches):
     else:
         raise ValueError("只允許 main 或 release/[v]X.Y.Z")
     tickets = data.get("tickets")
+    head = data.get("head", "")
+    if tickets == [] and isinstance(head, str) and re.fullmatch(r"(?:chore|refactor)(?:/.+)?", head):
+        return {"base": base, "expected": expected, "tickets": [], "ticket_check": "skipped"}
     if not isinstance(tickets, list) or not tickets:
         raise ValueError("缺少本次 PR 關聯票")
     seen = set()

@@ -20,6 +20,21 @@ def data(version="6.2.0", base="release/v6.2.0"):
 
 
 class VersionTests(unittest.TestCase):
+    def test_ticket_optional_branches(self):
+        for head in ["chore", "refactor", "chore/deps", "refactor/service"]:
+            with self.subTest(head=head):
+                payload = {"base": "release/v6.2.0", "head": head, "tickets": []}
+                self.assertEqual(versions.check_versions(payload, {"release/v6.2.0"})["ticket_check"], "skipped")
+                with self.assertRaises(ValueError):
+                    versions.check_versions(payload, set())
+                payload["tickets"] = data("6.3.0")["tickets"]
+                with self.assertRaises(ValueError):
+                    versions.check_versions(payload, {"release/v6.2.0"})
+        for head in ["feature/x", "chorefix", "feature/chore/x", "refactor/", "Chore/x", None]:
+            with self.subTest(head=head), self.assertRaises(ValueError):
+                versions.check_versions({"base": "main", "head": head, "tickets": []},
+                                        {"main", "release/v6.3.0"})
+
     def test_prefix_policy(self):
         for version in ["6.2.0", " v6.2.0(後端) ", "6.2.0-hotfix", "6.2.00", "6.2.01"]:
             with self.subTest(version=version):

@@ -1,6 +1,6 @@
 {
   "name": "zone-workflow",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Zone 共用 PR 與需求導向審查",
   "author": { "name": "Zone" },
   "skills": "./skills/"

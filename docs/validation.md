@@ -21,7 +21,13 @@
 | --- | --- | --- |
 | 本次 P-1、歷史 commit 有 P-2 | 只查 P-1 | policy：本次 Jira 票單 |
 | 本次 P-1 與 P-2 都明確列出 | 兩張皆須通過 | policy：本次 Jira 票單 |
-| 缺票、缺 AC、純重構無 AC | 審查／草稿可做，發布停止 | policy：本次 Jira 票單 |
+| 子票無 AC／版本，parent 主票資料完整 | 保留子票，採主票相關 AC 與版本 | policy：本次 Jira 票單 |
+| 子票缺 parent 或主票不可讀／缺資料 | 停止發布，列出來源缺口 | policy：本次 Jira 票單 |
+| 多張子票共用主票 | 主票可查一次，各子票仍保留對照，不納入兄弟票 | policy：本次 Jira 票單 |
+| 非子任務的主票有 Epic parent | 使用主票自身資料，不往 Epic 替代 | policy：本次 Jira 票單 |
+| 一般分支缺票、或關聯主票缺 AC | 審查／草稿可做，發布停止 | policy：本次 Jira 票單 |
+| chore／refactor 無票 | 免 Jira AC／版本比對，仍檢查 base、審查與驗證 | policy：本次 Jira 票單 |
+| chore／refactor 有票 | 仍檢查主票 AC 與版本，失敗不得轉成無票例外 | policy：本次 Jira 票單 |
 | Jira／必要規範無法讀取 | 列出缺口，停止發布 | policy：共用政策 |
 | 只要求 review 或 PR 預覽 | 不修改、不發布、不合併 | zone-review／zone-pr |
 | 明確要求 review 並修正 | 修正與驗證，不重複詢問 | zone-review |
@@ -44,3 +50,10 @@
 - 本機 CLI help 支援 marketplace add 的 `--ref main` 與 `plugin add zone-workflow@zone-plugins`
 - GitHub 唯讀查詢回報 repo 為 Public、預設分支名稱為空；未變更 repo 可見性
 - 本次僅調整文件，未進行安裝、push 或端到端測試
+
+## 0.1.1 主票／子任務調整
+
+- 更新兩個 skills、共用政策、PR 模板及版本檢查輸入說明；版本檢查器仍只接收已解析版本，不新增 Jira API 邏輯
+- 既有 7 項測試與 diff whitespace 檢查通過；上表新增情境僅做靜態對照，未以真實 Jira 或獨立代理驗證 parent 解析
+
+同版未發布補充：加入 chore／refactor 無票例外，更新 skills、模板及版本檢查器；8 項測試通過，涵蓋允許的分支、相似但不符合的名稱、base 不存在與有票版本不符仍擋下。尚未實測 PR 發布
